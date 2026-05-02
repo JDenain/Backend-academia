@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { hashPassword, verifyPassword, generateAccessToken, generateRefreshToken, lg } from "../controllers/auth.controllers.js";
+import { hashPassword, verifyPassword, generateAccessToken, generateRefreshToken } from "../controllers/auth.controllers.js";
 import { pool } from "../db.js";
 import { validateRegister, validateLogin } from "../controllers/auth.validator.js";
 import crypto from 'crypto';
@@ -9,7 +9,7 @@ import bcrypt from 'bcrypt';
 
 const router = Router();
 
-router.post("/register", validateRegister, async (req, res) => {
+router.post("/api/register", validateRegister, async (req, res) => {
     const { user, password } = req.body;
     try {
         const existingUser = await pool.query('SELECT id FROM usuarios WHERE username = $1', [user]);
@@ -43,9 +43,7 @@ router.post("/register", validateRegister, async (req, res) => {
 });
 
 // POST /login
-router.post('/login', validateLogin, async (req, res) => {
-  console.log('Headers:', req.headers);
-  console.log(req.body)
+router.post('/api/login', validateLogin, async (req, res) => {
   const { username, password } = req.body;
   try {
     const result = await pool.query('SELECT id, username, password_hash, rol_id FROM usuarios WHERE username = $1', [username]);
@@ -84,14 +82,13 @@ router.post('/login', validateLogin, async (req, res) => {
   }
 });
 
-
-// router.get("/lg", lg);
-
-router.post('/refresh-token', async (req, res) => {
+router.post('/api/refresh-token', async (req, res) => {
   const token = req.cookies.refreshToken;
   if (!token) return res.sendStatus(401);
   try {
     const decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET);
+    console.log(decoded)
+    console.log(decoded.id)
     // Verificar que el usuario aún existe y que el refreshToken sea válido (puedes comparar con BD)
     const user = await pool.query('SELECT id, username, rol_id FROM usuarios WHERE id = $1 AND refresh_token = $2', [decoded.id, token]);
     if (!user.rows[0]) return res.sendStatus(403);
@@ -102,7 +99,7 @@ router.post('/refresh-token', async (req, res) => {
   }
 });
 
-router.post('/login/biometric', async (req, res) => {
+router.post('/api/login/biometric', async (req, res) => {
   const { biometricToken, userId } = req.body; // userId lo puedes guardar junto al token
   // Buscar token activo para ese usuario
   const result = await pool.query('SELECT * FROM biometric_tokens WHERE user_id = $1 AND expires_at > NOW()', [userId]);

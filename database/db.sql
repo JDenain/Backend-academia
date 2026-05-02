@@ -66,9 +66,8 @@ INSERT INTO usuarios (rol_id, departamento_id, password_hash, username, nombre_c
 (3, 15, '$2b$12$cibBTNHOhcFB0ZLfuItFUOvg7YzJBslECjtFGfAdygktk/V4OgRQm', 'TCNL.RODRIGUEZ.V', 'TCNL. JOSE RAMON RODRIGUEZ VILLANUEVA'),
 (3, 16, '$2b$12$cibBTNHOhcFB0ZLfuItFUOvg7YzJBslECjtFGfAdygktk/V4OgRQm', 'TCNL.FUENTES.U', 'TCNL. LUIS ANTONIO FUENTES USECHE'),
 (3, 17, '$2b$12$cibBTNHOhcFB0ZLfuItFUOvg7YzJBslECjtFGfAdygktk/V4OgRQm', 'MAY.MORALES.M', 'MAY. SIMON ALBERTO MORALES MOSQUERA'),
-(2, 18, '$2b$12$cibBTNHOhcFB0ZLfuItFUOvg7YzJBslECjtFGfAdygktk/V4OgRQm', 'S2.SALAZAR', 'SALAZAR');
+(2, 18, '$2b$12$cibBTNHOhcFB0ZLfuItFUOvg7YzJBslECjtFGfAdygktk/V4OgRQm', 'S2.SALAZAR', 'SALAZAR'),
 (2, 18, '$2b$12$cibBTNHOhcFB0ZLfuItFUOvg7YzJBslECjtFGfAdygktk/V4OgRQm', 'S2.SUAREZ', 'SUAREZ');
-
 
   
 --instucciones

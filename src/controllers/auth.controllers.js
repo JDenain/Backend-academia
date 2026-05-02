@@ -45,48 +45,6 @@ export const verifyAccessToken = (token, secret) => {
   }
 }
 
-
-
-
-export const lg = async (req, res) => {
-    res.send(`<html>
-        <head><title>Login</title></head>
-        <body>
-            <h1>Login</h1>
-            <form id="loginForm" method="POST" action="/login">
-                <label for="username">User:</label>
-                <input type="text" id="username" name="username" required>
-                <br>
-                <label for="password">Password:</label>
-                <input type="password" id="password" name="password" required>
-                <br>
-                <button type="submit">Login</button>
-            </form>
-            <script>
-                document.getElementById('loginForm').addEventListener('submit', function(e) => {
-                    e.preventDefault();
-                    const username = document.getElementById('username').value;
-                    const password = document.getElementById('password').value;
-                    
-                    try {  
-                        const response = await fetch('/login', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ username, password })
-                        });
-                        const data = await response.json();
-
-                        if (response.ok) {
-                            console.log('Login successful:', data);
-                            localStorage.setItem('accessToken', data.accessToken);
-                            }
-
-                    }
-            </script>
-        </body>
-    </html>`)
-}
-
 export const login = async (req, res) => {
     const { email , password } = req.body
     try{
