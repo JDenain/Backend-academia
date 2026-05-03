@@ -22,7 +22,7 @@ const mapDocument = (row) => ({
 export const getDocuments = async (req, res) => {
   try {
     const userId = req.user.id;
-    const role = req.user.rol; // Asumimos que el middleware agrega req.user con {id, rol}
+    const role = req.user.rol;
 
     let query = `
       SELECT 
@@ -52,7 +52,7 @@ export const getDocuments = async (req, res) => {
     const params = [];
 
     // Filtrado por rol: Admin/root ven todo; otros solo sus documentos (creados o asignados)
-    if (role !== 'Administrador' && role !== 'root') {
+    if (role === 3) {
       query += ` WHERE d.creado_por = $1 OR d.asignado_a = $1`;
       params.push(userId);
     }
@@ -136,10 +136,8 @@ export const getDocumentById = async (req, res) => {
     const doc = rows[0];
 
     // Verificar acceso: solo si es admin/root, o si el usuario es creador/asignado
-    if (role !== 'Administrador' && role !== 'root') {
-      if (doc.creado_por !== userId && doc.asignado_a !== userId) {
+    if (role === 3 && doc.asignado_a !== userId) {
         return res.status(403).json({ error: 'Acceso denegado' });
-      }
     }
 
     res.json(mapDocument(doc));
@@ -164,10 +162,8 @@ export const updateDocument = async (req, res) => {
 
     const doc = docRows[0];
     // Admin y root pueden editar cualquier documento; otros solo si son creador o asignado
-    if (role !== 'Administrador' && role !== 'root') {
-      if (doc.creado_por !== userId && doc.asignado_a !== userId) {
-        return res.status(403).json({ error: 'No tiene permiso para editar este documento' });
-      }
+    if (role === 3) {
+      return res.status(403).json({ error: 'No tiene permiso para editar este documento' });
     }
 
     const { rows } = await pool.query(
@@ -233,7 +229,7 @@ export const deleteDocument = async (req, res) => {
     const role = req.user.rol;
 
     // Solo administradores y root pueden eliminar
-    if (role !== 'Administrador' && role !== 'root') {
+    if (role !== 1 && role !== 4) {
       return res.status(403).json({ error: 'No autorizado para eliminar documentos' });
     }
 
@@ -267,10 +263,8 @@ export const downloadDocument = async (req, res) => {
     const doc = rows[0];
 
     // Verificar acceso
-    if (role !== 'Administrador' && role !== 'root') {
-      if (doc.creado_por !== userId && doc.asignado_a !== userId) {
+    if (role === 3 && doc.asignado_a !== userId) {
         return res.status(403).json({ error: 'Acceso denegado' });
-      }
     }
 
     // Si tenemos un s3_url_bucket, redirigimos; si no, intentamos con s3_key

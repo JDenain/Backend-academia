@@ -12,10 +12,10 @@ router.get("/api/documents/:id", getDocumentById);
 
 router.get("/api/documents/:id/download", downloadDocument);
 
-router.post("/api/documents", authorize(['Administrador', 'Editor']), uploadDocument);
+router.post("/api/documents", authorize([1, 2]), uploadDocument);
 
-router.patch("/api/documents/:id", authorize(['Administrador', 'Editor']), updateDocument);
+router.patch("/api/documents/:id", authorize([1, 2]), updateDocument);
 
-router.delete("/api/documents/:id", authorize(['Administrador', 'root']), deleteDocument);
+router.delete("/api/documents/:id", authorize([1, 4]), deleteDocument);
 
 export default router;
