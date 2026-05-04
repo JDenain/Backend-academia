@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { uploadDocument, getDocuments, getDocumentById, updateDocument, deleteDocument, downloadDocument } from "../controllers/documents.controllers.js";
+import { downloadDocumentFile ,uploadFileToDocument, uploadDocument, getDocuments, getDocumentById, updateDocument, deleteDocument, downloadDocument } from "../controllers/documents.controllers.js";
 import { authenticateToken, authorize } from "../controllers/auth.middleware.js"
 
 const router = Router();
@@ -10,9 +10,11 @@ router.get("/api/documents", getDocuments);
 
 router.get("/api/documents/:id", getDocumentById);
 
-router.get("/api/documents/:id/download", downloadDocument);
+router.post("/api/documents", uploadDocument);
 
-router.post("/api/documents", authorize([1, 2]), uploadDocument);
+router.post("/api/documents/:id/files", authenticateToken, uploadFileToDocument);
+
+router.get("/api/documents/:id/files/:filename", authenticateToken, downloadDocumentFile);
 
 router.patch("/api/documents/:id", authorize([1, 2]), updateDocument);
 

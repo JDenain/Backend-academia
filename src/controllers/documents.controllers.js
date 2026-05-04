@@ -1,23 +1,54 @@
 // controllers/documents.controllers.js
 import { pool } from "../db.js";
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from "url";
+
+// Obtener __dirname si usas módulos ES
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Configuración de multer: guarda en ../uploads relativo a este controlador
+const storage = multer.diskStorage({
+  destination: path.join(__dirname, '..', 'uploads'),
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname);
+    cb(null, uniqueSuffix + ext);               // nombre único para evitar colisiones
+  }
+});
+
+const upload = multer({ storage });
 
 // Helper para mapear la fila al formato que espera el frontend
-const mapDocument = (row) => ({
-  id: row.id, // "Id_Unico" original, ahora usamos el alias simple "id"
-  nombre: row.serial_registro, // o podrías usar un campo 'nombre_archivo' si existiera
-  descripcion: row.descripcion,
-  tipo: row.tipo_documento,   // OFICIO, MEMORANDUM...
-  fechaCreacion: row.fecha_registro,
-  tamano: row.tamano || 0,    // por ahora 0; podrías almacenar el tamaño real en otra columna
-  url: row.s3_url_bucket || '',
-  usuarioSubio: row.creado_por_username,
-  // Campos adicionales que podrías necesitar en modales:
-  remitente: row.remitente,
-  estado: row.estado,
-  urgencia: row.urgencia,
-  asignadoA: row.asignado_a_username,
-  departamento: row.departamento
-});
+const mapDocument = (row) => {
+  let archivos = [];
+  try {
+    archivos = JSON.parse(row.s3_key || '[]');
+    if (!Array.isArray(archivos)) archivos = []; // por si es string pero no array
+  } catch (e) {
+    // si no es JSON válido, dejamos array vacío
+    archivos = [];
+  }
+
+  return {
+    id: row.id,
+    nombre: row.serial_registro,
+    descripcion: row.descripcion,
+    tipo: row.tipo_documento,
+    fechaCreacion: row.fecha_registro,
+    tamano: row.tamano || 0,
+    url: row.s3_url_bucket || '',
+    usuarioSubio: row.creado_por_username,
+    remitente: row.remitente,
+    estado: row.estado,
+    urgencia: row.urgencia,
+    asignadoA: row.asignado_a_username,
+    departamento: row.departamento,
+    archivos,                     // array de strings con los nombres de archivo
+  };
+};
 
 export const getDocuments = async (req, res) => {
   try {
@@ -70,31 +101,50 @@ export const getDocuments = async (req, res) => {
 
 export const uploadDocument = async (req, res) => {
   try {
-    const data = req.body;
+    const {
+      serial_registro,
+      remitente,
+      descripcion,
+      departamento,        // string (nombre)
+      urgencia,
+      tiposDocumento       // array de strings, tomaremos el primero
+    } = req.body;
+
+    // 1. Obtener ID del departamento
+    const depRes = await pool.query('SELECT id FROM departamentos WHERE nombre = $1', [departamento]);
+    if (depRes.rows.length === 0) return res.status(400).json({ error: 'Departamento inválido' });
+    const departamento_id = depRes.rows[0].id;
+
+    // 2. Obtener ID del tipo de documento (primer elemento del array)
+    let tipo_doc_id = null;
+    if (tiposDocumento && tiposDocumento.length > 0) {
+      const tipoRes = await pool.query('SELECT id FROM tipos_de_documentos WHERE nombre = $1', [tiposDocumento[0]]);
+      if (tipoRes.rows.length > 0) tipo_doc_id = tipoRes.rows[0].id;
+    }
+
+    // 3. Estado por defecto (por ejemplo "Pendiente" = 1)
+    const estado_id = 1; // Asegúrate de que exista en tu tabla estados_documentos
+
+    // 4. Usuario creado desde el token
+    const creado_por = req.user.id;
+    const asignado_a = null;   // por ahora sin asignar
+
+    // Insertar el documento sin archivos
     const { rows } = await pool.query(
       `INSERT INTO documentos 
-       (serial_registro, remitente, descripcion, departamento_id, tipo_doc_id, estado_id, urgencia, s3_key, s3_url_bucket, creado_por, asignado_a)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
-      [
-        data.serial_registro,
-        data.remitente,
-        data.descripcion,
-        data.departamento_id,
-        data.tipo_doc_id,
-        data.estado_id,
-        data.urgencia,
-        data.s3_key,
-        data.s3_url_bucket,
-        data.creado_por,
-        data.asignado_a
-      ]
+       (serial_registro, remitente, descripcion, departamento_id, tipo_doc_id, 
+        estado_id, urgencia, s3_key, s3_url_bucket, creado_por, asignado_a)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, '[]', NULL, $8, $9) RETURNING *`,
+      [serial_registro, remitente, descripcion, departamento_id, tipo_doc_id, estado_id, urgencia, creado_por, asignado_a]
     );
+
     res.status(201).json(mapDocument(rows[0]));
   } catch (error) {
     console.error('Error creando documento:', error);
     res.status(500).json({ error: 'Error al crear documento' });
   }
 };
+
 
 export const getDocumentById = async (req, res) => {
   try {
@@ -281,3 +331,72 @@ export const downloadDocument = async (req, res) => {
   }
 };
 
+export const uploadFileToDocument = [
+  upload.single('file'),   // el campo del formulario se llama "file"
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const file = req.file;
+      if (!file) return res.status(400).json({ error: 'No se envió ningún archivo' });
+
+      // Verificar que el documento existe y permisos
+      const { rows: docRows } = await pool.query('SELECT id, s3_key FROM documentos WHERE id = $1', [id]);
+      if (docRows.length === 0) return res.status(404).json({ error: 'Documento no encontrado' });
+
+      // Leer el array actual de archivos (guardado como JSON en s3_key)
+      const archivos = JSON.parse(docRows[0].s3_key || '[]');
+      // Añadimos solo el nombre del archivo (sin ruta) para referencia
+      archivos.push(file.filename);
+
+      await pool.query(
+        `UPDATE documentos SET s3_key = $1, ultima_modificacion = CURRENT_TIMESTAMP WHERE id = $2`,
+        [JSON.stringify(archivos), id]
+      );
+
+      res.json({ message: 'Archivo subido', filename: file.filename });
+    } catch (error) {
+      console.error('Error al subir archivo:', error);
+      res.status(500).json({ error: 'Error al subir archivo' });
+    }
+  }
+];
+
+export const downloadDocumentFile = async (req, res) => {
+  try {
+    const { id, filename } = req.params;
+
+    // Verificar permisos de acceso (puedes reutilizar la lógica de getDocumentById)
+    const { rows } = await pool.query(
+      'SELECT s3_key, creado_por, asignado_a FROM documentos WHERE id = $1',
+      [id]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Documento no encontrado' });
+
+    const doc = rows[0];
+    const archivos = JSON.parse(doc.s3_key || '[]');
+
+    // Comprobar que el filename pertenece a este documento
+    if (!archivos.includes(filename)) {
+      return res.status(404).json({ error: 'Archivo no encontrado en este documento' });
+    }
+
+    // Verificar autorización (si no es admin/root y el usuario no es creador ni asignado)
+    if (req.user.rol === 3 && doc.creado_por !== req.user.id && doc.asignado_a !== req.user.id) {
+      return res.status(403).json({ error: 'Acceso denegado' });
+    }
+
+    // Construir la ruta completa: carpeta uploads/
+    const filePath = path.join(__dirname, '..', 'uploads', filename);
+
+    // Verificar que el archivo existe físicamente
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'Archivo físico no encontrado' });
+    }
+
+    // Enviar el archivo para descarga (usa el nombre original o el filename)
+    res.download(filePath, filename);   // Content-Disposition: attachment
+  } catch (error) {
+    console.error('Error al descargar archivo:', error);
+    res.status(500).json({ error: 'Error al descargar archivo' });
+  }
+};
