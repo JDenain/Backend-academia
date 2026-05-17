@@ -46,6 +46,8 @@ const mapDocument = (row) => {
     urgencia: row.urgencia,
     asignadoA: row.asignado_a_username,
     departamento: row.departamento,
+    direccion: row.direccion || 'entrada',
+    destino: row.destino || null,
     archivos,                     // array de strings con los nombres de archivo
   };
 };
@@ -54,6 +56,7 @@ export const getDocuments = async (req, res) => {
   try {
     const userId = req.user.id;
     const role = req.user.rol;
+    const { direccion } = req.query; // filtro opcional: 'entrada' o 'salida'
 
     let query = `
       SELECT 
@@ -71,7 +74,9 @@ export const getDocuments = async (req, res) => {
         u_creador.username AS creado_por_username,
         u_asignado.username AS asignado_a_username,
         d.creado_por,
-        d.asignado_a
+        d.asignado_a,
+        d.direccion,
+        d.destino
       FROM documentos d
       INNER JOIN departamentos dep ON d.departamento_id = dep.id
       INNER JOIN tipos_de_documentos td ON d.tipo_doc_id = td.id
@@ -81,11 +86,22 @@ export const getDocuments = async (req, res) => {
     `;
 
     const params = [];
+    const conditions = [];
 
     // Filtrado por rol: Admin/root ven todo; otros solo sus documentos (creados o asignados)
     if (role === 3) {
-      query += ` WHERE d.creado_por = $1 OR d.asignado_a = $1`;
       params.push(userId);
+      conditions.push(`(d.creado_por = $${params.length} OR d.asignado_a = $${params.length})`);
+    }
+
+    // Filtrado por dirección si se especifica
+    if (direccion && (direccion === 'entrada' || direccion === 'salida')) {
+      params.push(direccion);
+      conditions.push(`d.direccion = $${params.length}`);
+    }
+
+    if (conditions.length > 0) {
+      query += ` WHERE ` + conditions.join(' AND ');
     }
 
     query += ` ORDER BY d.fecha_registro DESC`;
@@ -107,8 +123,12 @@ export const uploadDocument = async (req, res) => {
       descripcion,
       departamento,        // string (nombre)
       urgencia,
-      tiposDocumento       // array de strings, tomaremos el primero
+      tiposDocumento,      // array de strings, tomaremos el primero
+      direccion,           // 'entrada' o 'salida'
+      destino              // string, solo para salida
     } = req.body;
+
+    const docDireccion = direccion || 'entrada';
 
     // 1. Obtener ID del departamento
     const depRes = await pool.query('SELECT id FROM departamentos WHERE nombre = $1', [departamento]);
@@ -118,8 +138,12 @@ export const uploadDocument = async (req, res) => {
     // 2. Obtener ID del tipo de documento (primer elemento del array)
     let tipo_doc_id = null;
     if (tiposDocumento && tiposDocumento.length > 0) {
+      console.log('funciona')
+      console.log(serial_registro, remitente,descripcion, departamento, urgencia, tiposDocumento)
       const tipoRes = await pool.query('SELECT id FROM tipos_de_documentos WHERE nombre = $1', [tiposDocumento[0]]);
       if (tipoRes.rows.length > 0) tipo_doc_id = tipoRes.rows[0].id;
+
+      console.log(tipo_doc_id)
     }
 
     // 3. Estado por defecto (por ejemplo "Pendiente" = 1)
@@ -127,18 +151,43 @@ export const uploadDocument = async (req, res) => {
 
     // 4. Usuario creado desde el token
     const creado_por = req.user.id;
-    const asignado_a = null;   // por ahora sin asignar
+    const asignado_a = departamento_id;   // por ahora sin asignar
 
-    // Insertar el documento sin archivos
+    // 5. Para documentos de salida, urgencia es NULL
+    const docUrgencia = docDireccion === 'salida' ? null : urgencia;
+
+    // 6. Destino solo aplica para salida
+    const docDestino = docDireccion === 'salida' ? (destino || null) : null;
+
+    // Insertar el documento
     const { rows } = await pool.query(
       `INSERT INTO documentos 
        (serial_registro, remitente, descripcion, departamento_id, tipo_doc_id, 
-        estado_id, urgencia, s3_key, s3_url_bucket, creado_por, asignado_a)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, '[]', NULL, $8, $9) RETURNING *`,
-      [serial_registro, remitente, descripcion, departamento_id, tipo_doc_id, estado_id, urgencia, creado_por, asignado_a]
+        estado_id, urgencia, s3_key, s3_url_bucket, creado_por, asignado_a, direccion, destino)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, '[]', NULL, $8, $9, $10, $11) RETURNING *`,
+      [serial_registro, remitente, descripcion, departamento_id, tipo_doc_id, estado_id, docUrgencia, creado_por, asignado_a, docDireccion, docDestino]
     );
 
-    res.status(201).json(mapDocument(rows[0]));
+    // Re-query to get joined data for proper mapping
+    const { rows: fullRows } = await pool.query(
+      `SELECT 
+        d.id, d.serial_registro, d.fecha_registro, d.remitente, d.descripcion,
+        dep.nombre AS departamento, td.nombre AS tipo_documento, ed.nombre AS estado,
+        d.urgencia, d.s3_key, d.s3_url_bucket,
+        u_creador.username AS creado_por_username,
+        u_asignado.username AS asignado_a_username,
+        d.creado_por, d.asignado_a, d.direccion, d.destino
+      FROM documentos d
+      INNER JOIN departamentos dep ON d.departamento_id = dep.id
+      INNER JOIN tipos_de_documentos td ON d.tipo_doc_id = td.id
+      INNER JOIN estados_documentos ed ON d.estado_id = ed.id
+      INNER JOIN usuarios u_creador ON d.creado_por = u_creador.id
+      LEFT JOIN usuarios u_asignado ON d.asignado_a = u_asignado.id
+      WHERE d.id = $1`,
+      [rows[0].id]
+    );
+
+    res.status(201).json(mapDocument(fullRows[0]));
   } catch (error) {
     console.error('Error creando documento:', error);
     res.status(500).json({ error: 'Error al crear documento' });
@@ -168,7 +217,9 @@ export const getDocumentById = async (req, res) => {
         u_creador.username AS creado_por_username,
         u_asignado.username AS asignado_a_username,
         d.creado_por,
-        d.asignado_a
+        d.asignado_a,
+        d.direccion,
+        d.destino
       FROM documentos d
       INNER JOIN departamentos dep ON d.departamento_id = dep.id
       INNER JOIN tipos_de_documentos td ON d.tipo_doc_id = td.id
@@ -221,8 +272,9 @@ export const updateDocument = async (req, res) => {
        SET serial_registro = $1, remitente = $2, descripcion = $3, departamento_id = $4, 
            tipo_doc_id = $5, estado_id = $6, urgencia = $7, s3_key = $8, 
            s3_url_bucket = $9, creado_por = $10, asignado_a = $11,
+           direccion = $12, destino = $13,
            ultima_modificacion = CURRENT_TIMESTAMP
-       WHERE id = $12 RETURNING *`,
+       WHERE id = $14 RETURNING *`,
       [
         data.serial_registro,
         data.remitente,
@@ -235,6 +287,8 @@ export const updateDocument = async (req, res) => {
         data.s3_url_bucket,
         data.creado_por,
         data.asignado_a,
+        data.direccion || 'entrada',
+        data.destino || null,
         documentId
       ]
     );
@@ -255,7 +309,9 @@ export const updateDocument = async (req, res) => {
         d.s3_key,
         d.s3_url_bucket,
         u_creador.username AS creado_por_username,
-        u_asignado.username AS asignado_a_username
+        u_asignado.username AS asignado_a_username,
+        d.direccion,
+        d.destino
       FROM documentos d
       INNER JOIN departamentos dep ON d.departamento_id = dep.id
       INNER JOIN tipos_de_documentos td ON d.tipo_doc_id = td.id

@@ -90,6 +90,8 @@ CREATE TABLE documentos(
     tipo_doc_id INTEGER REFERENCES tipos_de_documentos(id),
     estado_id INTEGER REFERENCES estados_documentos(id),
     urgencia VARCHAR CHECK (urgencia IN ('Bajo', 'Medio', 'Alto')),
+    direccion VARCHAR(10) NOT NULL DEFAULT 'entrada' CHECK (direccion IN ('entrada', 'salida')),
+    destino VARCHAR(200),
     s3_key TEXT NOT NULL,
     s3_url_bucket TEXT,
     creado_por INTEGER REFERENCES usuarios(id),

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { downloadDocumentFile ,uploadFileToDocument, uploadDocument, getDocuments, getDocumentById, updateDocument, deleteDocument, downloadDocument } from "../controllers/documents.controllers.js";
+import { downloadDocumentFile, uploadFileToDocument, uploadDocument, getDocuments, getDocumentById, updateDocument, deleteDocument } from "../controllers/documents.controllers.js";
 import { authenticateToken, authorize } from "../controllers/auth.middleware.js"
 
 const router = Router();

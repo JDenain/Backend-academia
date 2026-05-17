@@ -3,6 +3,7 @@ import { PORT } from './config.js';
 import userRoutes from './routes/users.routes.js';
 import documentsRoutes from './routes/documents.routes.js'
 import authRoutes from './routes/auth.routes.js';
+import reportRoutes from './routes/reports.routes.js';
 import morgan from 'morgan';
 import bcrypt from 'bcrypt';
 import cors from 'cors';
@@ -17,13 +18,14 @@ app.use(cookieParser());
 
 app.use(cors({
   origin: 'http://localhost:8100',
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
   credentials: true
 }));
 
 app.use(authRoutes);
 app.use(userRoutes);
 app.use(documentsRoutes)
+app.use(reportRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
