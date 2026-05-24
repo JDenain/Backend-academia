@@ -108,6 +108,9 @@ export const getDocuments = async (req, res) => {
 
     const { rows } = await pool.query(query, params);
     const documents = rows.map(mapDocument);
+
+    console.log(documents);
+
     res.json(documents);
   } catch (error) {
     console.error('Error en getDocuments:', error);
@@ -139,7 +142,7 @@ export const uploadDocument = async (req, res) => {
     let tipo_doc_id = null;
     if (tiposDocumento && tiposDocumento.length > 0) {
       console.log('funciona')
-      console.log(serial_registro, remitente,descripcion, departamento, urgencia, tiposDocumento)
+      console.log(serial_registro, remitente, descripcion, departamento, urgencia, tiposDocumento)
       const tipoRes = await pool.query('SELECT id FROM tipos_de_documentos WHERE nombre = $1', [tiposDocumento[0]]);
       if (tipoRes.rows.length > 0) tipo_doc_id = tipoRes.rows[0].id;
 
@@ -238,7 +241,7 @@ export const getDocumentById = async (req, res) => {
 
     // Verificar acceso: solo si es admin/root, o si el usuario es creador/asignado
     if (role === 3 && doc.asignado_a !== userId) {
-        return res.status(403).json({ error: 'Acceso denegado' });
+      return res.status(403).json({ error: 'Acceso denegado' });
     }
 
     res.json(mapDocument(doc));
@@ -370,7 +373,7 @@ export const downloadDocument = async (req, res) => {
 
     // Verificar acceso
     if (role === 3 && doc.asignado_a !== userId) {
-        return res.status(403).json({ error: 'Acceso denegado' });
+      return res.status(403).json({ error: 'Acceso denegado' });
     }
 
     // Si tenemos un s3_url_bucket, redirigimos; si no, intentamos con s3_key
