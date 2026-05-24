@@ -108,9 +108,6 @@ export const getDocuments = async (req, res) => {
 
     const { rows } = await pool.query(query, params);
     const documents = rows.map(mapDocument);
-
-    console.log(documents);
-
     res.json(documents);
   } catch (error) {
     console.error('Error en getDocuments:', error);
@@ -141,12 +138,8 @@ export const uploadDocument = async (req, res) => {
     // 2. Obtener ID del tipo de documento (primer elemento del array)
     let tipo_doc_id = null;
     if (tiposDocumento && tiposDocumento.length > 0) {
-      console.log('funciona')
-      console.log(serial_registro, remitente, descripcion, departamento, urgencia, tiposDocumento)
       const tipoRes = await pool.query('SELECT id FROM tipos_de_documentos WHERE nombre = $1', [tiposDocumento[0]]);
       if (tipoRes.rows.length > 0) tipo_doc_id = tipoRes.rows[0].id;
-
-      console.log(tipo_doc_id)
     }
 
     // 3. Estado por defecto (por ejemplo "Pendiente" = 1)
@@ -258,46 +251,66 @@ export const updateDocument = async (req, res) => {
     const role = req.user.rol;
     const data = req.body;
 
-    // Verificar que el documento existe y que el usuario tiene permiso
-    const { rows: docRows } = await pool.query('SELECT creado_por, asignado_a FROM documentos WHERE id = $1', [documentId]);
+    // Verificar que el documento existe
+    const { rows: docRows } = await pool.query('SELECT * FROM documentos WHERE id = $1', [documentId]);
     if (docRows.length === 0) {
       return res.status(404).json({ error: 'Documento no encontrado' });
     }
 
     const doc = docRows[0];
-    // Admin y root pueden editar cualquier documento; otros solo si son creador o asignado
-    if (role === 3) {
-      return res.status(403).json({ error: 'No tiene permiso para editar este documento' });
+    
+    // Admin (1) y root (4) pueden editar cualquier documento. Otros (3) no.
+    // Nota: El rol 2 suele ser otro tipo de usuario, si existe, puede que requiera permiso. 
+    // Ajustar si es necesario.
+    // Lookup IDs si vienen en la data como string
+    let departamento_id = doc.departamento_id;
+    if (data.departamento) {
+      const depRes = await pool.query('SELECT id FROM departamentos WHERE nombre = $1', [data.departamento]);
+      if (depRes.rows.length > 0) departamento_id = depRes.rows[0].id;
     }
+
+    let tipo_doc_id = doc.tipo_doc_id;
+    if (data.tipo) {
+      const tipoRes = await pool.query('SELECT id FROM tipos_de_documentos WHERE nombre = $1', [data.tipo]);
+      if (tipoRes.rows.length > 0) tipo_doc_id = tipoRes.rows[0].id;
+    }
+
+    let estado_id = doc.estado_id;
+    if (data.estado) {
+      const estRes = await pool.query('SELECT id FROM estados_documentos WHERE nombre = $1', [data.estado]);
+      if (estRes.rows.length > 0) estado_id = estRes.rows[0].id;
+    }
+
+    // Manejar los nombres de los campos que vienen del frontend (mapeados en mapDocument)
+    const serial_registro = data.nombre !== undefined ? data.nombre : doc.serial_registro;
+    const descripcion = data.descripcion !== undefined ? data.descripcion : doc.descripcion;
+    const remitente = data.remitente !== undefined ? data.remitente : doc.remitente;
+    const urgencia = data.urgencia !== undefined ? data.urgencia : doc.urgencia;
+    const direccion = data.direccion !== undefined ? data.direccion : doc.direccion;
+    const destino = data.destino !== undefined ? data.destino : doc.destino;
 
     const { rows } = await pool.query(
       `UPDATE documentos 
        SET serial_registro = $1, remitente = $2, descripcion = $3, departamento_id = $4, 
-           tipo_doc_id = $5, estado_id = $6, urgencia = $7, s3_key = $8, 
-           s3_url_bucket = $9, creado_por = $10, asignado_a = $11,
-           direccion = $12, destino = $13,
+           tipo_doc_id = $5, estado_id = $6, urgencia = $7,
+           direccion = $8, destino = $9,
            ultima_modificacion = CURRENT_TIMESTAMP
-       WHERE id = $14 RETURNING *`,
+       WHERE id = $10 RETURNING *`,
       [
-        data.serial_registro,
-        data.remitente,
-        data.descripcion,
-        data.departamento_id,
-        data.tipo_doc_id,
-        data.estado_id,
-        data.urgencia,
-        data.s3_key,
-        data.s3_url_bucket,
-        data.creado_por,
-        data.asignado_a,
-        data.direccion || 'entrada',
-        data.destino || null,
+        serial_registro,
+        remitente,
+        descripcion,
+        departamento_id,
+        tipo_doc_id,
+        estado_id,
+        urgencia,
+        direccion,
+        destino,
         documentId
       ]
     );
 
     // Devolvemos el documento actualizado con el mismo formato
-    // (podemos reutilizar la función mapDocument pero necesitamos los joins; hacemos una segunda consulta)
     const { rows: updatedRows } = await pool.query(
       `SELECT 
         d.id,

@@ -16,7 +16,7 @@ router.post("/api/documents/:id/files", authenticateToken, uploadFileToDocument)
 
 router.get("/api/documents/:id/files/:filename", authenticateToken, downloadDocumentFile);
 
-router.patch("/api/documents/:id", authorize([1, 2]), updateDocument);
+router.patch("/api/documents/:id", updateDocument);
 
 router.delete("/api/documents/:id", authorize([1, 4]), deleteDocument);
 

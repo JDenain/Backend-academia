@@ -28,7 +28,7 @@ CREATE TABLE estados_documentos(
 );
 
 INSERT INTO estados_documentos (nombre) VALUES
-('Recibido'), ('En Revision'), ('Firmado'), ('Rechazado'), ('Archivado'), ('Sin Estado');
+('Recibido'), ('En Proceso'), ('Completado'), ('Cancelado');
 
 CREATE TABLE departamentos(
     id SERIAL PRIMARY KEY,
