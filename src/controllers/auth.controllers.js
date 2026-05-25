@@ -42,10 +42,14 @@ export const register = async (req, res) => {
 export const userLogin = async (req, res) => {
     const { username, password } = req.body;
     try {
-    const result = await pool.query('SELECT id, username, password_hash, rol_id FROM usuarios WHERE username = $1', [username]);
+    const result = await pool.query('SELECT id, username, password_hash, rol_id, activo FROM usuarios WHERE username = $1', [username]);
     const user = result.rows[0];
     if (!user) {
         return res.status(401).json({ error: 'Credenciales inválidas' });
+    }
+
+    if (user.activo === false) {
+        return res.status(403).json({ error: 'El usuario está inactivo. Contacte al administrador.' });
     }
 
     const validPassword = await verifyPassword(password, user.password_hash);

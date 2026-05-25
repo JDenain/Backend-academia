@@ -4,17 +4,19 @@ import { authenticateToken, authorize } from "../controllers/auth.middleware.js"
 
 const router = Router();
 
-// Define your user-related routes here
-router.get("/users", getAllUsers);
+// Admin = 1, Root = 4. 
+router.get("/api/users", authenticateToken, authorize(1, 4), getAllUsers);
 
-router.get("/users/:id", authenticateToken, authorize('Administrador'), getUserById);
+// Any authenticated user can get their own info, or admin can get anyone. The controller needs to handle this.
+router.get("/api/users/:id", authenticateToken, getUserById);
 
-router.post("/users", authenticateToken, authorize('Administrador'), createUser);
+router.post("/api/users", authenticateToken, authorize(1, 4), createUser);
 
-router.delete("/users/:id", authenticateToken, authorize('Administrador'), deleteUser);
+router.delete("/api/users/:id", authenticateToken, authorize(1, 4), deleteUser);
 
-router.put("/users/:id", updateUser);
+// Any authenticated user can update themselves. Admin can update anyone. Controller will check.
+router.put("/api/users/:id", authenticateToken, updateUser);
 
-router.put("/users/password/:id", updateUserPassword);
+router.put("/api/users/password/:id", authenticateToken, updateUserPassword);
 
 export default router;
