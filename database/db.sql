@@ -119,3 +119,12 @@ CREATE TABLE biometric_tokens (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS notificaciones (
+  id SERIAL PRIMARY KEY,
+  usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+  documento_id INTEGER NOT NULL REFERENCES documentos(id) ON DELETE CASCADE,
+  leida BOOLEAN NOT NULL DEFAULT FALSE,
+  urgencia VARCHAR(50),
+  mensaje TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);

@@ -4,6 +4,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from "url";
+import { createNotification } from './notifications.controllers.js';
 
 // Obtener __dirname si usas módulos ES
 const __filename = fileURLToPath(import.meta.url);
@@ -164,6 +165,20 @@ export const uploadDocument = async (req, res) => {
       [serial_registro, remitente, descripcion, departamento_id, tipo_doc_id, estado_id, docUrgencia, creado_por, asignado_a, docDireccion, docDestino]
     );
 
+    const documentId = rows[0].id;
+
+    // Notificar a todos los usuarios del departamento al que se asignó el documento (si es entrada)
+    // Opcionalmente, puedes notificar también en salida si así lo desean.
+    if (docDireccion === 'entrada') {
+      const usersInDep = await pool.query('SELECT id FROM usuarios WHERE departamento_id = $1', [departamento_id]);
+      for (const u of usersInDep.rows) {
+        // No notificamos al mismo creador si pertenece al mismo departamento
+        if (u.id !== creado_por) {
+          await createNotification(u.id, documentId, docUrgencia, serial_registro);
+        }
+      }
+    }
+
     // Re-query to get joined data for proper mapping
     const { rows: fullRows } = await pool.query(
       `SELECT 
@@ -186,6 +201,9 @@ export const uploadDocument = async (req, res) => {
     res.status(201).json(mapDocument(fullRows[0]));
   } catch (error) {
     console.error('Error creando documento:', error);
+    if (error.code === '23505') {
+      return res.status(409).json({ error: 'Error: El serial de registro ingresado ya existe.' });
+    }
     res.status(500).json({ error: 'Error al crear documento' });
   }
 };
@@ -281,6 +299,22 @@ export const updateDocument = async (req, res) => {
       if (estRes.rows.length > 0) estado_id = estRes.rows[0].id;
     }
 
+    let asignado_a = doc.asignado_a;
+    let newAsignadoA = false;
+    if (data.asignadoA !== undefined) {
+      if (data.asignadoA === null || data.asignadoA === '') {
+        asignado_a = null;
+      } else {
+        const asigRes = await pool.query('SELECT id FROM usuarios WHERE username = $1', [data.asignadoA]);
+        if (asigRes.rows.length > 0) {
+          if (asignado_a !== asigRes.rows[0].id) {
+             asignado_a = asigRes.rows[0].id;
+             newAsignadoA = true;
+          }
+        }
+      }
+    }
+
     // Manejar los nombres de los campos que vienen del frontend (mapeados en mapDocument)
     const serial_registro = data.nombre !== undefined ? data.nombre : doc.serial_registro;
     const descripcion = data.descripcion !== undefined ? data.descripcion : doc.descripcion;
@@ -293,9 +327,9 @@ export const updateDocument = async (req, res) => {
       `UPDATE documentos 
        SET serial_registro = $1, remitente = $2, descripcion = $3, departamento_id = $4, 
            tipo_doc_id = $5, estado_id = $6, urgencia = $7,
-           direccion = $8, destino = $9,
+           direccion = $8, destino = $9, asignado_a = $10,
            ultima_modificacion = CURRENT_TIMESTAMP
-       WHERE id = $10 RETURNING *`,
+       WHERE id = $11 RETURNING *`,
       [
         serial_registro,
         remitente,
@@ -306,9 +340,14 @@ export const updateDocument = async (req, res) => {
         urgencia,
         direccion,
         destino,
+        asignado_a,
         documentId
       ]
     );
+
+    if (newAsignadoA && asignado_a) {
+      await createNotification(asignado_a, documentId, urgencia, serial_registro);
+    }
 
     // Devolvemos el documento actualizado con el mismo formato
     const { rows: updatedRows } = await pool.query(
@@ -341,6 +380,9 @@ export const updateDocument = async (req, res) => {
     res.json(mapDocument(updatedRows[0]));
   } catch (error) {
     console.error('Error en updateDocument:', error);
+    if (error.code === '23505') {
+      return res.status(409).json({ error: 'Error: El serial de registro ingresado ya existe en otro documento.' });
+    }
     res.status(500).json({ error: 'Error al actualizar documento' });
   }
 };
