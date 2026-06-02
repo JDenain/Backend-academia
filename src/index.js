@@ -5,6 +5,7 @@ import documentsRoutes from './routes/documents.routes.js'
 import authRoutes from './routes/auth.routes.js';
 import reportRoutes from './routes/reports.routes.js';
 import notificationRoutes from './routes/notifications.routes.js';
+import departamentosRoutes from './routes/departamentos.routes.js';
 import morgan from 'morgan';
 import bcrypt from 'bcrypt';
 import cors from 'cors';
@@ -28,6 +29,7 @@ app.use(userRoutes);
 app.use(documentsRoutes)
 app.use(reportRoutes);
 app.use(notificationRoutes);
+app.use(departamentosRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);

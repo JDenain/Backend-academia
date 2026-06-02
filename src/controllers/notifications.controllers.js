@@ -96,3 +96,17 @@ export const markAllAsRead = async (req, res) => {
     res.status(500).json({ error: 'Error al marcar notificaciones' });
   }
 };
+
+export const deleteReadNotifications = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { rowCount } = await pool.query(
+      'DELETE FROM notificaciones WHERE usuario_id = $1 AND leida = TRUE',
+      [userId]
+    );
+    res.json({ message: `${rowCount} notificaciones leídas eliminadas` });
+  } catch (error) {
+    console.error('Error en deleteReadNotifications:', error);
+    res.status(500).json({ error: 'Error al eliminar notificaciones leídas' });
+  }
+};
