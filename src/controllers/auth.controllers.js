@@ -56,10 +56,8 @@ export const userLogin = async (req, res) => {
     if (!validPassword) {
         return res.status(401).json({ error: 'Credenciales inválidas' });
     }
-    console.log(user)
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
-    console.log(refreshToken)
     await pool.query('UPDATE usuarios SET refresh_token = $1 WHERE id = $2', [refreshToken, user.id]);
 
     res.cookie('refreshToken', refreshToken, {
@@ -87,8 +85,6 @@ export const refreshToken = async (req, res) => {
   if (!token) return res.sendStatus(401);
   try {
     const decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET);
-    console.log(decoded)
-    console.log(decoded.id)
     // Verificar que el usuario aún existe y que el refreshToken sea válido (puedes comparar con BD)
     const user = await pool.query('SELECT id, username, rol_id FROM usuarios WHERE id = $1 AND refresh_token = $2', [decoded.id, token]);
     if (!user.rows[0]) return res.sendStatus(403);

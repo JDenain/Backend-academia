@@ -1,5 +1,6 @@
 import express from 'express';
 import { PORT } from './config.js';
+import { pool } from './db.js';
 import userRoutes from './routes/users.routes.js';
 import documentsRoutes from './routes/documents.routes.js'
 import authRoutes from './routes/auth.routes.js';
@@ -33,4 +34,5 @@ app.use(departamentosRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
+  pool.query('SELECT 1').then(() => console.log('Base de datos conectada correctamente')).catch(err => console.error('Error conectando a la base de datos:', err));
 });

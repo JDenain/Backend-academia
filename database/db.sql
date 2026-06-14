@@ -57,7 +57,7 @@ CREATE TABLE usuarios (
 );
 
 INSERT INTO usuarios (rol_id, departamento_id, password_hash, username, nombre_completo) VALUES
-(1, 1, '$2b$12$cibBTNHOhcFB0ZLfuItFUOvg7YzJBslECjtFGfAdygktk/V4OgRQm', 'G/B.CASTILLO.L', 'G/    B. LANSFORD JOSE CASTILLO LOPEZ'),
+(1, 1, '$2b$12$cibBTNHOhcFB0ZLfuItFUOvg7YzJBslECjtFGfAdygktk/V4OgRQm', 'G/B.CASTILLO.L', 'G/ B. LANSFORD JOSE CASTILLO LOPEZ'),
 (1, 2, '$2b$12$cibBTNHOhcFB0ZLfuItFUOvg7YzJBslECjtFGfAdygktk/V4OgRQm', 'CNEL.GODOY.B', 'CNEL. GUSTAVO GREGORIO GODOY BRICEÑO'),
 (1, 3, '$2b$12$cibBTNHOhcFB0ZLfuItFUOvg7YzJBslECjtFGfAdygktk/V4OgRQm', 'MAY.AGUIRRE.S', 'MAY. JESUS FRANCISCO AGUIRRE SALAZAR'),
 (3, 4, '$2b$12$cibBTNHOhcFB0ZLfuItFUOvg7YzJBslECjtFGfAdygktk/V4OgRQm', 'CAP.DIAZ.R', 'CAP. WALTER ALEJANDRO DIAZ RON'),
