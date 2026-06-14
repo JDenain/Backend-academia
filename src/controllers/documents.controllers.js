@@ -251,7 +251,7 @@ export const getDocumentById = async (req, res) => {
     const doc = rows[0];
 
     // Verificar acceso: solo si es admin/root, o si el usuario es creador/asignado
-    if (role === 3 && doc.asignado_a !== userId) {
+    if (role === 3 && (doc.asignado_a !== userId && doc.creado_por !== userId)) {
       return res.status(403).json({ error: 'Acceso denegado' });
     }
 
