@@ -22,6 +22,18 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
+const getResponsibleUserForDepartment = async (departamentoId) => {
+  const { rows } = await pool.query(
+    `SELECT id FROM usuarios
+     WHERE departamento_id = $1 AND activo = TRUE
+     ORDER BY id ASC
+     LIMIT 1`,
+    [departamentoId]
+  );
+
+  return rows[0]?.id ?? null;
+};
+
 // Helper para mapear la fila al formato que espera el frontend
 const mapDocument = (row) => {
   let archivos = [];
@@ -148,7 +160,11 @@ export const uploadDocument = async (req, res) => {
 
     // 4. Usuario creado desde el token
     const creado_por = req.user.id;
-    const asignado_a = departamento_id;   // por ahora sin asignar
+    const asignado_a = await getResponsibleUserForDepartment(departamento_id);
+
+    if (!asignado_a) {
+      return res.status(400).json({ error: 'No existe un usuario responsable asignado a ese departamento.' });
+    }
 
     // 5. Para documentos de salida, urgencia es NULL
     const docUrgencia = docDireccion === 'salida' ? null : urgencia;
@@ -203,6 +219,9 @@ export const uploadDocument = async (req, res) => {
     console.error('Error creando documento:', error);
     if (error.code === '23505') {
       return res.status(409).json({ error: 'Error: El serial de registro ingresado ya existe.' });
+    }
+    if (error.code === '23503') {
+      return res.status(400).json({ error: 'Error de referencia: el usuario asignado no existe.' });
     }
     res.status(500).json({ error: 'Error al crear documento' });
   }
@@ -301,6 +320,17 @@ export const updateDocument = async (req, res) => {
 
     let asignado_a = doc.asignado_a;
     let newAsignadoA = false;
+
+    if (data.departamento !== undefined && departamento_id !== doc.departamento_id) {
+      const responsableId = await getResponsibleUserForDepartment(departamento_id);
+      if (responsableId) {
+        asignado_a = responsableId;
+        newAsignadoA = true;
+      } else {
+        asignado_a = null;
+      }
+    }
+
     if (data.asignadoA !== undefined) {
       if (data.asignadoA === null || data.asignadoA === '') {
         asignado_a = null;
